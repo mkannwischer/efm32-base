@@ -1,3 +1,13 @@
+
+mkdir build
+cmake ..
+make
+make flash
+
+
+
+
+---- original README ---
 # EFM32 Base Project
 
 This base project is designed to provide a quick and platform independent method of building projects for Silicon Labs EFM32 microcontrollers.  

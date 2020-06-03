@@ -16,7 +16,7 @@ efm32g:
 
 #EFM32GG Family
 efm32gg:
-	cd builds; rm -rf $@; mkdir $@; cd $@; cmake -DDEVICE=EFM32GG990F1024 ../..; make
+	cd builds; rm -rf $@; mkdir $@; cd $@; cmake -DDEVICE=EFM32GG11B820F2048GL192 ../..; make
 
 #EFM32ZG Family
 efm32zg:

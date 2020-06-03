@@ -1,11 +1,7 @@
 //EFM32 blink test
 
-#ifndef LED_PIN
-#define LED_PIN     4
-#endif
-#ifndef LED_PORT
-#define LED_PORT    gpioPortA
-#endif
+#define LED_PIN     12
+#define LED_PORT    gpioPortH
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -58,12 +54,12 @@ int main(void)
 
     GPIO_PinOutSet(LED_PORT, LED_PIN);
 
-    printf("test");
+    //printf("test");
 
     /* Infinite blink loop */
     while (1)
     {
-        Delay(1000);
+        Delay(3000);
         GPIO_PinOutToggle(LED_PORT, LED_PIN);
     }
 }
