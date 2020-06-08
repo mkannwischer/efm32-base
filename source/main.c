@@ -1,68 +1,62 @@
-//EFM32 blink test
-
-#define LED_PIN     12
-#define LED_PORT    gpioPortH
-
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdio.h>
+/**************************************************************************/ /**
+ * @main_Series0.c
+ * @brief This project reads input on the UART RX port and echoes it back to
+ * the TX port one line at a time.  It does not use the VCOM or stdio.  See
+ * readme.txt for details.
+ * @version 0.0.1
+ ******************************************************************************
+ * @section License
+ * <b>Copyright 2018 Silicon Labs, Inc. http://www.silabs.com</b>
+ *******************************************************************************
+ *
+ * This file is licensed under the Silabs License Agreement. See the file
+ * "Silabs_License_Agreement.txt" for details. Before using this software for
+ * any purpose, you must agree to the terms of that agreement.
+ *
+ ******************************************************************************/
 #include "em_device.h"
-#include "em_chip.h"
 #include "em_cmu.h"
-#include "em_emu.h"
 #include "em_gpio.h"
+#include "em_usart.h"
+#include "em_chip.h"`
 
-volatile uint32_t msTicks; /* counts 1ms timeTicks */
+#define BUFFER_SIZE 80
+char buffer[BUFFER_SIZE];
 
-void Delay(uint32_t dlyTicks);
-
-/**************************************************************************//**
- * @brief SysTick_Handler
- * Interrupt Service Routine for system tick counter
- *****************************************************************************/
-void SysTick_Handler(void)
+static void hal_init(void)
 {
-    msTicks++;       /* increment counter necessary in Delay()*/
+  USART_InitAsync_TypeDef init = USART_INITASYNC_DEFAULT;
+  // Chip errata
+  CHIP_Init();
+  // Enable oscillator to GPIO and USART1 modules
+  CMU_ClockEnable(cmuClock_GPIO, true);
+  CMU_ClockEnable(cmuClock_USART5, true);
+
+  // set pin modes for UART TX and RX pins
+  //GPIO_PinModeSet(gpioPortE, 9, gpioModeInput, 0);
+  GPIO_PinModeSet(gpioPortE, 8, gpioModePushPull, 1);
+
+  // Initialize USART asynchronous mode and route pins
+  USART_InitAsync(USART5, &init);
+  // USART5->ROUTEPEN |= USART_ROUTEPEN_TXPEN | USART_ROUTEPEN_RXPEN;
+  USART5->ROUTEPEN |= USART_ROUTEPEN_TXPEN;
 }
 
-/**************************************************************************//**
- * @brief Delays number of msTick Systicks (typically 1 ms)
- * @param dlyTicks Number of ticks to delay
- *****************************************************************************/
-void Delay(uint32_t dlyTicks)
+static void hal_send_str(unsigned char *in)
 {
-    uint32_t curTicks;
-
-    curTicks = msTicks;
-    while ((msTicks - curTicks) < dlyTicks) ;
+  int i;
+  for (i = 0; in[i] != 0; i++)
+  {
+    USART_Tx(USART5, *(unsigned char *)(in + i));
+  }
+  USART_Tx(USART5, '\n');
 }
 
-/**************************************************************************//**
- * @brief  Main function
- *****************************************************************************/
 int main(void)
 {
-    CHIP_Init();
+  hal_init();
+  hal_send_str("Hello. I'm a Giant Gecko and I would like to play!");
 
-    CMU_ClockEnable(cmuClock_GPIO, true);
-
-    /* Setup SysTick Timer for 1 msec interrupts  */
-    if (SysTick_Config(CMU_ClockFreqGet(cmuClock_CORE) / 1000)) while (1) ;
-
-    /* Initialize LED driver */
-    GPIO_PinModeSet(LED_PORT, LED_PIN, gpioModePushPull, 0);
-
-    GPIO_PinOutSet(LED_PORT, LED_PIN);
-
-    //printf("test");
-
-    /* Infinite blink loop */
-    while (1)
-    {
-        Delay(3000);
-        GPIO_PinOutToggle(LED_PORT, LED_PIN);
-    }
+  while (1)
+    ;
 }
-
-
-
