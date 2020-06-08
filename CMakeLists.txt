@@ -66,7 +66,7 @@ include_directories(${BASE_LOCATION}/include)
 
 # Generate executable and link
 add_executable(${PROJECT_NAME}
-        source/main.c)
+        source/main.c source/hal-efm32gg.c)
 
 efm32_configure_linker_addresses(${PROJECT_NAME})
 
