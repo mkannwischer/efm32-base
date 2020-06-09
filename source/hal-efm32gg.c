@@ -3,7 +3,7 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 #include "em_usart.h"
-#include "em_chip.h"`
+#include "em_chip.h"
 
 
 void hal_setup(const enum clock_mode clock)

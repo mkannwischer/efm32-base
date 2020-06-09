@@ -49,6 +49,12 @@ endif ()
 # Add base libs (emlib, CMSIS, device files)
 include(${BASE_LOCATION}/toolchain/efm32-base.cmake)
 
+
+SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mfpu=fpv4-sp-d16 -mfloat-abi=hard")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=fpv4-sp-d16 -mfloat-abi=hard")
+SET(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -mfpu=fpv4-sp-d16 -mfloat-abi=hard")
+
+
 add_subdirectory(${BASE_LOCATION}/cmsis)
 add_subdirectory(${BASE_LOCATION}/emlib)
 add_subdirectory(${BASE_LOCATION}/device)
@@ -62,11 +68,14 @@ set(CMAKE_EXE_LINKER_FLAGS "${COMMON_DEFINITIONS} -Xlinker -T${LINKER_SCRIPT} -W
 ##### Files #####
 
 # Add project headers
-include_directories(${BASE_LOCATION}/include)
+include_directories(${BASE_LOCATION}/include source/rainbow source/common)
 
+
+file(GLOB rainbow_sources source/rainbow/**.c source/rainbow/**.S source/rainbow/**.s)
+file(GLOB common_sources source/common/**.c source/common/**.S source/common/**.s)
 # Generate executable and link
 add_executable(${PROJECT_NAME}
-        source/main.c source/hal-efm32gg.c)
+        source/main.c source/hal-efm32gg.c ${rainbow_sources} ${common_sources})
 
 efm32_configure_linker_addresses(${PROJECT_NAME})
 
@@ -93,3 +102,5 @@ include(${BASE_LOCATION}/toolchain/jlink.cmake)
 if (CMAKE_VERBOSE_MAKEFILE)
     print_debug_info()
 endif()
+
+
