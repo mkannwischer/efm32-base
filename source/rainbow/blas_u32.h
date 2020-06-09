@@ -10,15 +10,8 @@
 #include <stdint.h>
 
 static inline void _gf256v_add_u32(uint8_t *accu_b, const uint8_t *a, unsigned _num_byte) {
-    unsigned n_u32 = _num_byte >> 2;
-    uint32_t *b_u32 = (uint32_t *) accu_b;
-    const uint32_t *a_u32 = (const uint32_t *) a;
-    for (unsigned i = 0; i < n_u32; i++) b_u32[i] ^= a_u32[i];
-
-    a += (n_u32 << 2);
-    accu_b += (n_u32 << 2);
-    unsigned rem = _num_byte & 3;
-    for (unsigned i = 0; i < rem; i++) accu_b[i] ^= a[i];
+    //TODO: this is currently inefficient.
+    for (unsigned i = 0; i < _num_byte; i++) accu_b[i] ^= a[i];
 }
 
 static inline void _gf256v_predicated_add_u32(uint8_t *accu_b, uint8_t predicate, const uint8_t *a, unsigned _num_byte) {
