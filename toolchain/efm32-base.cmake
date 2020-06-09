@@ -120,7 +120,7 @@ set(CMAKE_ASM_FLAGS "${COMMON_DEFINITIONS} -x assembler-with-cpp -DLOOP_ADDR=0x8
 set(LIBS ${LIBS} -lgcc -lc -lnosys -lgcc -lc -lnosys)
 
 # Debug Flags
-set(COMMON_DEBUG_FLAGS "-O0 -g -gdwarf-2")
+set(COMMON_DEBUG_FLAGS "-O2 -g -gdwarf-2")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_DEBUG_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${COMMON_DEBUG_FLAGS}")
 set(CMAKE_ASM_FLAGS_DEBUG "${COMMON_DEBUG_FLAGS}")
