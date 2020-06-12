@@ -86,6 +86,7 @@ int randombytes(uint8_t *buf, size_t len)
 
     while (len > 4)
     {
+        while(!TRNG0->FIFOLEVEL);
         random.asint = TRNG0->FIFO;
         *buf++ = random.aschar[0];
         *buf++ = random.aschar[1];
@@ -95,6 +96,7 @@ int randombytes(uint8_t *buf, size_t len)
     }
     if (len > 0)
     {
+        while(!TRNG0->FIFOLEVEL);
         random.asint = TRNG0->FIFO;
         for (; len > 0; len--)
         {
