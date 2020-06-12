@@ -60,6 +60,21 @@ static void trng_setup()
 
     TRNG0->CONTROL = TRNG_CONTROL_ENABLE;
 }
+static volatile unsigned long long overflowcnt = 0;
+void SysTick_Handler(void)
+{
+    overflowcnt++; /* increment counter necessary in Delay()*/
+}
+
+static void cyccnt_setup()
+{
+    SysTick_Config(16777215);
+
+    //alternatively, if a 32-bit counter is enough:
+    //CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    //DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    //DWT->CYCCNT = 0;
+}
 
 int randombytes(uint8_t *buf, size_t len)
 {
@@ -93,6 +108,7 @@ void hal_setup(const enum clock_mode clock)
 {
     usart_setup();
     trng_setup();
+    cyccnt_setup();
 }
 
 void hal_send_str(const char *in)
@@ -103,4 +119,20 @@ void hal_send_str(const char *in)
         USART_Tx(USART5, *(unsigned char *)(in + i));
     }
     USART_Tx(USART5, '\n');
+}
+
+uint64_t hal_get_time(void)
+{
+    //alternatively, if a 32-bit counter is enough:
+    //return (uint64_t) DWT->CYCCNT;
+
+    while (true)
+    {
+        unsigned long long before = overflowcnt;
+        unsigned long long result = (before + 1) * 16777216llu - (SysTick->VAL);
+        if (overflowcnt == before)
+        {
+            return result;
+        }
+    }
 }
