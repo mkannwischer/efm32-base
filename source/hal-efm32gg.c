@@ -4,9 +4,12 @@
 #include "em_gpio.h"
 #include "em_usart.h"
 #include "em_chip.h"
+#include "randombytes.h"
 
+#include <stddef.h>
+#include <stdint.h>
 
-void hal_setup(const enum clock_mode clock)
+static void usart_setup()
 {
     //TODO: clock setup
     USART_InitAsync_TypeDef init = USART_INITASYNC_DEFAULT;
@@ -24,6 +27,72 @@ void hal_setup(const enum clock_mode clock)
     USART_InitAsync(USART5, &init);
     // USART5->ROUTEPEN |= USART_ROUTEPEN_TXPEN | USART_ROUTEPEN_RXPEN;
     USART5->ROUTEPEN |= USART_ROUTEPEN_TXPEN;
+}
+
+static void trng_setup()
+{
+    uint8_t i = 0, j = 0;
+
+    CMU_ClockEnable(cmuClock_TRNG0, true);
+
+    TRNG0->CONTROL = TRNG_CONTROL_SOFTRESET;
+    TRNG0->CONTROL = 0;
+
+    TRNG0->CONTROL = TRNG_CONTROL_CONDBYPASS | TRNG_CONTROL_ENABLE;
+
+    // Read FIFO at least 257 times to ensure randomness
+    // of entropy source
+    for (i = 0; i < 5; i++)
+    {
+        while (TRNG0->FIFOLEVEL < 64)
+            ;
+        for (j = 0; j < 64; j++)
+        {
+            TRNG0->FIFO;
+        }
+    }
+
+    // Program random key and enable conditioning function
+    TRNG0->KEY0 = TRNG0->FIFO;
+    TRNG0->KEY1 = TRNG0->FIFO;
+    TRNG0->KEY2 = TRNG0->FIFO;
+    TRNG0->KEY3 = TRNG0->FIFO;
+
+    TRNG0->CONTROL = TRNG_CONTROL_ENABLE;
+}
+
+int randombytes(uint8_t *buf, size_t len)
+{
+    union
+    {
+        uint8_t aschar[4];
+        uint32_t asint;
+    } random;
+
+    while (len > 4)
+    {
+        random.asint = TRNG0->FIFO;
+        *buf++ = random.aschar[0];
+        *buf++ = random.aschar[1];
+        *buf++ = random.aschar[2];
+        *buf++ = random.aschar[3];
+        len -= 4;
+    }
+    if (len > 0)
+    {
+        random.asint = TRNG0->FIFO;
+        for (; len > 0; len--)
+        {
+            *buf++ = random.aschar[len - 1];
+        }
+    }
+    return 0;
+}
+
+void hal_setup(const enum clock_mode clock)
+{
+    usart_setup();
+    trng_setup();
 }
 
 void hal_send_str(const char *in)
