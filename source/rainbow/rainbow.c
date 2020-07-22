@@ -72,8 +72,19 @@ int rainbow_sign( uint8_t * signature , const sk_t * sk , const uint8_t * _diges
     // Given the vinegars, pre-compute variables needed for layer 2
     uint8_t r_l1_F1[_O1_BYTE] = {0};
     uint8_t r_l2_F1[_O2_BYTE] = {0};
-    batch_quad_trimat_eval( r_l1_F1, sk->l1_F1, vinegar, _V1, _O1_BYTE );
-    batch_quad_trimat_eval( r_l2_F1, sk->l2_F1, vinegar, _V1, _O2_BYTE );
+    #if (_V1 == 32) && (_O1_BYTE == 16) && (_O2_BYTE == 16)
+    //batch_quad_trimat_eval( r_l1_F1, sk->l1_F1, vinegar, _V1, _O1_BYTE );
+    //batch_quad_trimat_eval( r_l2_F1, sk->l2_F1, vinegar, _V1, _O2_BYTE );
+    batch_quad_trimat_eval_gf16_32_16_asm(r_l1_F1, sk->l1_F1, vinegar);
+    batch_quad_trimat_eval_gf16_32_16_asm(r_l2_F1, sk->l2_F1, vinegar);
+    #elif (_V1 == 36) && (_O1_BYTE == 16) && (_O2_BYTE == 16)
+    //batch_quad_trimat_eval( r_l1_F1, sk->l1_F1, vinegar, _V1, _O1_BYTE );
+    //batch_quad_trimat_eval( r_l2_F1, sk->l2_F1, vinegar, _V1, _O2_BYTE );
+    batch_quad_trimat_eval_gf16_36_16_asm(r_l1_F1, sk->l1_F1, vinegar);
+    batch_quad_trimat_eval_gf16_36_16_asm(r_l2_F1, sk->l2_F1, vinegar);
+    #else
+    #error not implemented
+    #endif 
     uint8_t mat_l2_F3[_O2*_O2_BYTE];
     uint8_t mat_l2_F2[_O1*_O2_BYTE];
 
@@ -143,7 +154,13 @@ int rainbow_sign( uint8_t * signature , const sk_t * sk , const uint8_t * _diges
             #error not implemented
         #endif
 
-        batch_quad_trimat_eval( mat_l2 , sk->l2_F5, x_o1 , _O1, _O2_BYTE ); // F5
+        #if (_O1 == 32) && (_O2_BYTE == 16)
+        //batch_quad_trimat_eval( mat_l2 , sk->l2_F5, x_o1 , _O1, _O2_BYTE ); // F5
+        batch_quad_trimat_eval_gf16_32_16_asm(mat_l2, sk->l2_F5, x_o1);
+        #else
+            #error not implemented
+        #endif
+
         gf256v_add( temp_o , mat_l2 , _O2_BYTE );
         gf256v_add( temp_o , r_l2_F1 , _O2_BYTE );                      // F1
         gf256v_add( temp_o , y + _O1_BYTE , _O2_BYTE );
@@ -244,12 +261,155 @@ int _rainbow_verify( const uint8_t * digest , const uint8_t * salt , const unsig
     return (0==cc)? 0: -1;
 }
 
+static inline uint8_t tmp_gf16v_get_ele(const uint8_t *a, unsigned i) {
+    uint8_t r = a[i >> 1];
+    uint8_t r0 = r&0xf;
+    uint8_t r1 = r>>4;
+    uint8_t m = (uint8_t)(-(i&1));
+    return (r1&m)|((~m)&r0);
+}
+
+// gf4 := gf2[x]/x^2+x+1
+static inline uint32_t tmp_gf4v_mul_2_u32(uint32_t a) {
+    uint32_t bit0 = a & 0x55555555;
+    uint32_t bit1 = a & 0xaaaaaaaa;
+    return (bit0 << 1) ^ bit1 ^ (bit1 >> 1);
+}
+
+
+static inline uint32_t tmp_gf4v_mul_u32(uint32_t a, uint8_t b) {
+    uint32_t bit0_b = ((uint32_t) 0) - ((uint32_t)(b & 1));
+    uint32_t bit1_b = ((uint32_t) 0) - ((uint32_t)((b >> 1) & 1));
+    return (a & bit0_b) ^ (bit1_b & tmp_gf4v_mul_2_u32(a));
+}
+
+
+// gf16 := gf4[y]/y^2+y+x
+static inline uint32_t tmp_gf16v_mul_u32(uint32_t a, uint8_t b) {
+    uint32_t axb0 = tmp_gf4v_mul_u32(a, b);
+    uint32_t axb1 = tmp_gf4v_mul_u32(a, b >> 2);
+    uint32_t a0b1 = (axb1 << 2) & 0xcccccccc;
+    uint32_t a1b1 = axb1 & 0xcccccccc;
+    uint32_t a1b1_2 = a1b1 >> 2;
+
+    return axb0 ^ a0b1 ^ a1b1 ^ tmp_gf4v_mul_2_u32(a1b1_2);
+}
+static inline void tmp_gf256v_add(uint8_t *accu_b, const uint8_t *a, size_t _num_byte) {
+    for (size_t i = 0; i < _num_byte; i++) {
+        accu_b[i] ^= a[i];
+    }
+}
+static inline void tmp_gf16v_madd_u32(uint8_t *accu_c, const uint8_t *a, uint8_t gf16_b, unsigned _num_byte) {
+    unsigned n_u32 = _num_byte >> 2;
+    uint32_t *c_u32 = (uint32_t *) accu_c;
+    const uint32_t *a_u32 = (const uint32_t *) a;
+    for (unsigned i = 0; i < n_u32; i++) c_u32[i] ^= gf16v_mul_u32(a_u32[i], gf16_b);
+
+    union tmp_32 {
+        uint8_t u8[4];
+        uint32_t u32;
+    } t;
+    accu_c += (n_u32 << 2);
+    a += (n_u32 << 2);
+    unsigned rem = _num_byte & 3;
+    for (unsigned i = 0; i < rem; i++) t.u8[i] = a[i];
+    t.u32 = gf16v_mul_u32(t.u32, gf16_b);
+    for (unsigned i = 0; i < rem; i++) accu_c[i] ^= t.u8[i];
+}
+
+//// gf4 := gf2[x]/x^2+x+1
+static inline uint8_t tmp_gf4_mul_2(uint8_t a) {
+    uint8_t r = (uint8_t)(a << 1);
+    r ^= (uint8_t)((a >> 1) * 7);
+    return r;
+}
+
+static inline uint8_t tmp_gf4_mul(uint8_t a, uint8_t b) {
+    uint8_t r = (uint8_t)(a * (b & 1));
+    return r ^ (uint8_t)(tmp_gf4_mul_2(a) * (b >> 1));
+}
+//// gf16 := gf4[y]/y^2+y+x
+static inline uint8_t tmp_gf16_mul(uint8_t a, uint8_t b) {
+    uint8_t a0 = a & 3;
+    uint8_t a1 = (a >> 2);
+    uint8_t b0 = b & 3;
+    uint8_t b1 = (b >> 2);
+    uint8_t a0b0 = tmp_gf4_mul(a0, b0);
+    uint8_t a1b1 = tmp_gf4_mul(a1, b1);
+    uint8_t a0b1_a1b0 = tmp_gf4_mul(a0 ^ a1, b0 ^ b1) ^ a0b0 ^ a1b1;
+    uint8_t a1b1_x2 = tmp_gf4_mul_2(a1b1);
+    return (uint8_t)((a0b1_a1b0 ^ a1b1) << 2 ^ a0b0 ^ a1b1_x2);
+}
+
+
+
+static void batch_quad_trimat_eval_gf16_100_32_new( unsigned  char * y, const unsigned char * trimat, const unsigned char * x)
+{
+    const unsigned int dim = 100;
+    const unsigned int size_batch = 32;
+    for(int i =0;i<size_batch; i++) y[i] = 0;
+
+    unsigned char tmp[16*size_batch];
+    for(int i = 0;i<16*size_batch;i++){
+        tmp[i] = 0;
+    }
+
+    unsigned char _x[dim];
+    for(int i=0;i<dim;i++) _x[i] = tmp_gf16v_get_ele( x , i );
+
+    for(int i=0;i<dim;i++) {
+        for(int j=i; j<dim; j++){
+            //TODO: this should be faster, but it isn't.
+            if(dim-j >= 8 && j%2==0 && 0){
+                const uint32_t *x32 = (const uint32_t *) (x+j/2);
+                uint32_t e32 = tmp_gf16v_mul_u32(*x32, _x[i]);
+                for(int k=0;k<8;k++){
+                    uint8_t e = (e32>> (k*4) )&0xF;
+                    if(e != 0)
+                        tmp_gf256v_add(tmp+e*size_batch, trimat, size_batch);
+                    trimat += size_batch;
+                }
+                j += 7;
+            } else if(dim-j >= 4){
+                const uint32_t *x32= (const uint32_t *) (_x+j);
+                uint32_t e32 = tmp_gf16v_mul_u32(*x32, _x[i]);
+                for(int k=0;k<4;k++){
+                    uint8_t e = (e32>> (k*8) )&0xF;
+                    if(e != 0)
+                        tmp_gf256v_add(tmp+e*size_batch, trimat, size_batch);
+                    trimat += size_batch;
+                }
+                j += 3;
+            } else {
+                uint8_t e = tmp_gf16_mul( tmp_gf16v_get_ele( x , i ),  tmp_gf16v_get_ele( x , j ));
+                if(e != 0)
+                    tmp_gf256v_add(tmp+e*size_batch, trimat, size_batch);
+                trimat += size_batch;
+            }
+        }
+    }
+    //batch_quad_trimat_eval_gf16_100_32_new_inner(y, tmp);
+    for(uint8_t e=1;e<16;e++){
+        tmp_gf16v_madd_u32(y, tmp+e*size_batch, e, size_batch);
+    }
+}
+
+
 
 int rainbow_verify( const uint8_t * digest , const uint8_t * signature , const pk_t * pk )
 {
     unsigned char digest_ck[_PUB_M_BYTE];
     // public_map( digest_ck , pk , signature ); Evaluating the quadratic public polynomials.
-    batch_quad_trimat_eval( digest_ck , pk->pk , signature , _PUB_N , _PUB_M_BYTE );
+
+    #if (_PUB_N == 100) && (_PUB_M_BYTE == 32)
+        //batch_quad_trimat_eval( digest_ck , pk->pk , signature , _PUB_N , _PUB_M_BYTE );
+        batch_quad_trimat_eval_gf16_100_32_new(digest_ck, pk->pk, signature);
+    #elif (_PUB_N == 96) && (_PUB_M_BYTE == 32)
+        //3( digest_ck , pk->pk , signature , _PUB_N , _PUB_M_BYTE );
+        batch_quad_trimat_eval_gf16_96_32_asm(digest_ck, pk->pk, signature);
+    #else
+        #error not implemented
+    #endif
 
     return _rainbow_verify( digest , signature+_PUB_N_BYTE , digest_ck );
 }

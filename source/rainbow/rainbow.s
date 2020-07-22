@@ -903,48 +903,6 @@ gf16mat_prod_512_32_ontheflybitsliced_asm:
     .unreq ctr1
     .unreq ctr2
 
-//batch_quad_trimat_eval_gf16_32_16( unsigned char * y, const unsigned char * trimat, const unsigned char * x,);
-//.global batch_quad_trimat_eval_gf16_32_16
-//.type batch_quad_trimat_eval_gf16_32_16, %function
-//.align 2
-//batch_quad_trimat_eval_gf16_32_16:
-//    push {r4-r11, r14}
-//    y      .req r0  // batch_size bytes -> 16 bytes
- //   x      .req r1  // dim/2 bytes -> 16 bytes
- //   trimat .req r2  // dim*dim*batch_size bytes -> 16384 bytes
-
- //   tmp0   .req r3
- //   tmp1   .req r4
- //   tmp2   .req r5
- //   tmp3   .req r6
-
-    // dim = 32
-    // batch_size = 16
- //   .set dim, 32
-
-    /* stack:
-            _x  -> dim bytes
-     */
-//    sub sp, #dim
-//    .set k, 0
-//    .rept dim/4
-//        ldr r3, [x, #k*4]
-//        strb r3, [sp, #k*8]
- //       .set j, 1
- //       .rept 7
- //           lsr r3, r3, #4
- //           strb r3, [sp, #k*8+j]
- //           .set j, j+1
-///       .endr
- //       .set k, k+1
-  //  .endr
-
-
-
-
-//    add sp, #dim
-//    pop {r4-r11, r14}
-//    bx lr
 
 .macro accmulu32_new a, c, x, t1, t2, t3
 
@@ -975,169 +933,6 @@ gf16mat_prod_512_32_ontheflybitsliced_asm:
     mul2 \a, \t1
     eor \c, \c, \a
 .endm
-
-//void batch_quad_trimat_eval_gf16_32_16_inner_asm(unsigned char *tmp, unsigned char *trimat, unsigned char *x, unsigned int i)
-.global batch_quad_trimat_eval_gf16_32_16_inner_asm
-.type batch_quad_trimat_eval_gf16_32_16_inner_asm, %function
-.align 2
-batch_quad_trimat_eval_gf16_32_16_inner_asm:
-    push {r4-r11, r14}
-
-    tmp     .req r0
-    trimat  .req r1
-    x_ptr   .req r2
-    x       .req r4
-    b0      .req r4
-    b1      .req r5
-    b2      .req r6
-    b3      .req r7
-    accu0    .req r8
-    accu1    .req r9
-    accu2    .req r10
-    accu3    .req r11
-    a0      .req r12
-    t1      .req r14
-    t2      .req r0
-    t3      .req r5
-
-
-    add x_ptr, x_ptr, r3
-    mov r4, #32
-    sub r3, r4, r3
-
-    push {tmp}
-    //TODO: inline this
-    mov accu0, #0
-    mov accu1, #0
-    mov accu2, #0
-    mov accu3, #0
-
-    1:
-    // TODO load full word and then split it up
-    ldrb x, [x_ptr], #1
-    //sbfx b3, x,  #3, #1
-    //sbfx b2, x,  #2, #1
-    //sbfx b1, x,  #1, #1
-    //sbfx b0, x,  #0, #1
-    ldr a0, [trimat], #4
-    accmulu32_new a0, accu0, x, t1, t2, t3
-    ldr a0, [trimat], #4
-    accmulu32_new a0, accu1, x, t1, t2, t3
-    ldr a0, [trimat], #4
-    accmulu32_new a0, accu2, x, t1, t2, t3
-    ldr a0, [trimat], #4
-    accmulu32_new a0, accu3, x, t1, t2, t3
-    subs r3, r3, #1
-    bne 1b
-
-    pop {tmp}
-    str accu0, [tmp, #0]
-    str accu1, [tmp, #4]
-    str accu2, [tmp, #8]
-    str accu3, [tmp, #12]
-
-    pop {r4-r11, r14}
-    bx lr
-
-
-    .unreq tmp
-    .unreq trimat
-    .unreq x_ptr
-    .unreq x
-    .unreq b0
-    .unreq b1
-    .unreq b2
-    .unreq b3
-    .unreq accu0
-    .unreq accu1
-    .unreq accu2
-    .unreq accu3
-    .unreq a0
-    .unreq t1
-    .unreq t2
-
-
-//void batch_quad_trimat_eval_gf16_32_16_inner2_asm(unsigned *y, unsigned char *trimat, unsigned char *_x)
-.global batch_quad_trimat_eval_gf16_32_16_inner2_asm
-.type batch_quad_trimat_eval_gf16_32_16_inner2_asm, %function
-.align 2
-batch_quad_trimat_eval_gf16_32_16_inner2_asm:
-    push {r4-r11, r14}
-    y       .req r4
-    tmp     .req r0
-    trimat  .req r1
-    x_ptr   .req r2
-    ctr     .req r3
-    y0      .req r5
-    t1      .req r6
-    t2      .req r7
-    tmp0      .req r8
-
-    b0      .req r9
-    b1      .req r10
-    b2      .req r11
-    b3      .req r12
-    x       .req r9
-
-    mov y, r0
-
-    //gf256v_set_zero( y , size_batch);
-    //TODO: inline this
-    mov r12, #0
-    str r12, [y]
-    str r12, [y,#4]
-    str r12, [y,#8]
-    str r12, [y,#12]
-
-    //unsigned char tmp[16];
-    sub sp, sp, #16
-    mov tmp, sp
-
-    mov ctr, #0
-    1:
-        push {tmp, trimat, x_ptr, ctr}
-        bl batch_quad_trimat_eval_gf16_32_16_inner_asm
-        pop {tmp, trimat, x_ptr, ctr}
-        mov r5, #32
-        sub r5, r5, ctr
-        add trimat, trimat, r5, lsl#4
-
-        ldrb x, [x_ptr, ctr]
-        sbfx b3, x,  #3, #1
-        sbfx b2, x,  #2, #1
-        sbfx b1, x,  #1, #1
-        sbfx b0, x,  #0, #1
-
-        ldr tmp0, [tmp, #0]
-        ldr y0, [y]
-        accmulu32 tmp, y0, b0, b1, b2, b3, t1, t2
-        str y0, [y]
-
-        ldr tmp0, [tmp, #4]
-        ldr y0, [y, #4]
-        accmulu32 tmp, y0, b0, b1, b2, b3, t1, t2
-        str y0, [y, #4]
-
-        ldr tmp0, [tmp, #8]
-        ldr y0, [y, #8]
-        accmulu32 tmp, y0, b0, b1, b2, b3, t1, t2
-        str y0, [y, #8]
-
-        ldr tmp0, [tmp, #12]
-        ldr y0, [y, #12]
-        accmulu32 tmp, y0, b0, b1, b2, b3, t1, t2
-        str y0, [y, #12]
-
-    add ctr, ctr, #1
-    cmp ctr, #32
-    bne 1b
-
-    add sp, #16
-    pop {r4-r11, r14}
-    bx lr
-
-.unreq tmp0
-
 //extern void gf16mat_prod_512_32_ontheflybitsliced_asm(uint32_t *c, uint32_t *a, uint8_t *b);
 .global gf16mat_prod_512_36_ontheflybitsliced_asm
 .type gf16mat_prod_512_36_bitsliced_inner_asm, %function
@@ -1264,3 +1059,695 @@ gf16mat_prod_512_36_ontheflybitsliced_asm:
     .unreq one
     .unreq ctr1
     .unreq ctr2
+
+//extern void madd_bitsliced_wrap_asm(uint32_t *accc, uint32_t *a, uint8_t b);
+// a gets bitsliced on the fly
+// acc is bitsliced
+.global madd_bitsliced_wrap_asm
+.type madd_bitsliced_wrap_asm, %function
+.align 2
+madd_bitsliced_wrap_asm:
+    push {r4-r11, r14}
+    ldr r3, [r0]
+    ldr r4, [r0, #4]
+    ldr r5, [r0, #8]
+    ldr r6, [r0, #12]
+
+    ldr r7, [r1]
+    ldr r8, [r1, #4]
+    ldr r9, [r1, #8]
+    ldr r1, [r1, #12]
+
+    bitslice r10, r11, r12, r14, r7, r8, r9, r1
+    madd_bitsliced r3, r4, r5, r6, r10, r11, r12, r14, r2, r7, r8, r9, r1
+
+    str r3, [r0]
+    str r4, [r0,#4]
+    str r5, [r0,#8]
+    str r6, [r0,#12]
+
+    pop {r4-r11, pc}
+
+//extern void madd_bitsliced_wrap_asm_double(uint32_t *accc, uint32_t *a, uint8_t b);
+// a gets bitsliced on the fly
+// acc is bitsliced
+.global madd_bitsliced_wrap_asm_double
+.type madd_bitsliced_wrap_asm_double, %function
+.align 2
+madd_bitsliced_wrap_asm_double:
+    push {r4-r11, r14}
+    ldr r3, [r0]
+    ldr r4, [r0, #4]
+    ldr r5, [r0, #8]
+    ldr r6, [r0, #12]
+
+    ldr r8, [r1, #4]
+    ldr r9, [r1, #8]
+    ldr r10,[r1, #12]
+    ldr r7, [r1], #16
+    push {r1}
+
+    bitslice r1, r11, r12, r14, r7, r8, r9, r10
+    madd_bitsliced r3, r4, r5, r6, r1, r11, r12, r14, r2, r7, r8, r9, r10
+
+    str r4, [r0,#4]
+    str r5, [r0,#8]
+    str r6, [r0,#12]
+    str r3, [r0],#16
+    pop {r1}
+
+    ldr r3, [r0]
+    ldr r4, [r0, #4]
+    ldr r5, [r0, #8]
+    ldr r6, [r0, #12]
+
+    ldr r8, [r1, #4]
+    ldr r9, [r1, #8]
+    ldr r10, [r1, #12]
+    ldr r7, [r1], #16
+    bitslice r1, r11, r12, r14, r7, r8, r9, r10
+    madd_bitsliced r3, r4, r5, r6, r1, r11, r12, r14, r2, r7, r8, r9, r10
+    str r4, [r0,#4]
+    str r5, [r0,#8]
+    str r6, [r0,#12]
+    str r3, [r0], #16
+
+    pop {r4-r11, pc}
+
+
+
+//batch_quad_trimat_eval_gf16_32_16_asm(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_32_16_asm
+.type batch_quad_trimat_eval_gf16_32_16_asm, %function
+.align 2
+batch_quad_trimat_eval_gf16_32_16_asm:
+    push.w {r4-r11, r14}
+
+
+    one      .req s0
+    ctr1     .req s1
+    ctr2     .req s2
+
+
+    sub.w sp, #48
+    # initialize y with 0
+    mov.w r12, #0
+    str.w r12, [sp, #32]
+    str.w r12, [sp, #36]
+    str.w r12, [sp, #40]
+    str.w r12, [sp, #44]
+
+    # re-organize x
+    .set j, 0
+    .rept 4
+    ldr.w r3, [r2, #4*j]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+
+    .set i, 0
+    .rept 4
+    strb.w r3, [sp, #2*i+8*j]
+    strb.w r4, [sp, #2*i+8*j+1]
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .set i, i+1
+    .endr
+    .set j, j+1
+    .endr
+
+    mov.w r2, sp
+
+
+
+    vmov.w one, #0.5
+    vmov.w ctr1, #16
+
+    vmov.w s3, r0
+    2:
+    vmov.w s4, r2
+    mov.w r4, #0
+    mov.w r5, #0
+    mov.w r6, #0
+    mov.w r7, #0
+    vmov.f32 ctr2, ctr1
+    1:
+        ldr.w r9,  [r1, #4]
+        ldr.w r10, [r1, #8]
+        ldr.w r11, [r1, #12]
+        ldr.w r8,  [r1], #16
+        ldrb.w r0, [r2], #1
+
+        vmov s5, r2
+        bitslice r12, r14, r3, r2, r8, r9, r10, r11
+        madd_bitsliced r4, r5, r6, r7, r12, r14, r3, r2, r0, r8, r9, r10, r11
+        vmov r2, s5
+
+        vsub.f32 ctr2, ctr2, one
+        vcmp.f32 ctr2, #0.0
+        vmrs apsr_nzcv, FPSCR
+        bhi.w 1b
+
+    vmov r2, s4
+    ldr.w r8,  [sp, #32]
+    ldr.w r9,  [sp, #36]
+    ldr.w r10, [sp, #40]
+    ldr.w r11, [sp, #44]
+    ldrb.w r3, [r2], #1
+    vmov s5, r2
+    madd_bitsliced r8, r9, r10, r11, r4, r5, r6, r7, r3, r0, r2, r12, r14
+    vmov r2, s5
+
+    str.w r8,  [sp, #32]
+    str.w r9,  [sp, #36]
+    str.w r10, [sp, #40]
+    str.w r11, [sp, #44]
+    vsub.f32 ctr1, ctr1, one
+    vcmp.f32 ctr1, #0.0
+    vmrs apsr_nzcv, FPSCR
+    bhi.w 2b
+
+    vmov r0, s3
+    # un-bitslice
+    bitslice r1, r2, r3, r4, r8, r9, r10, r11
+    str.w r1, [r0]
+    str.w r2, [r0,#4]
+    str.w r3, [r0,#8]
+    str.w r4, [r0,#12]
+
+    add.w sp, #48
+    pop.w {r4-r11, pc}
+
+//batch_quad_trimat_eval_gf16_36_16_asm(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_36_16_asm
+.type batch_quad_trimat_eval_gf16_36_16_asm, %function
+.align 2
+batch_quad_trimat_eval_gf16_36_16_asm:
+    push.w {r4-r11, r14}
+
+
+    one      .req s0
+    ctr1     .req s1
+    ctr2     .req s2
+
+    sub.w sp, #52
+    # initialize y with 0
+    mov.w r12, #0
+    str.w r12, [sp, #36]
+    str.w r12, [sp, #40]
+    str.w r12, [sp, #44]
+    str.w r12, [sp, #48]
+
+    # re-organize x
+    .set j, 0
+    .rept 4
+    ldr.w r3, [r2, #4*j]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+
+    .set i, 0
+    .rept 4
+    strb.w r3, [sp, #2*i+8*j]
+    strb.w r4, [sp, #2*i+8*j+1]
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .set i, i+1
+    .endr
+    .set j, j+1
+    .endr
+
+    ldrh.w r3, [r2, #16]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+    .set i, 0
+    .rept 2
+    strb.w r3, [sp, #32+i*2]
+    strb.w r4, [sp, #32+i*2+1]
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .set i, i+1
+    .endr
+
+
+    mov.w r2, sp
+
+    vmov.w one, #0.5
+    vmov.w ctr1, #18
+
+    vmov.w s3, r0
+    2:
+    vmov.w s4, r2
+    mov.w r4, #0
+    mov.w r5, #0
+    mov.w r6, #0
+    mov.w r7, #0
+    vmov.f32 ctr2, ctr1
+    1:
+        ldr.w r9,  [r1, #4]
+        ldr.w r10, [r1, #8]
+        ldr.w r11, [r1, #12]
+        ldr.w r8,  [r1], #16
+        ldrb.w r0, [r2], #1
+
+        vmov s5, r2
+        bitslice r12, r14, r3, r2, r8, r9, r10, r11
+        madd_bitsliced r4, r5, r6, r7, r12, r14, r3, r2, r0, r8, r9, r10, r11
+        vmov r2, s5
+
+        vsub.f32 ctr2, ctr2, one
+        vcmp.f32 ctr2, #0.0
+        vmrs apsr_nzcv, FPSCR
+        bhi.w 1b
+
+    vmov r2, s4
+    ldr.w r8,  [sp, #36]
+    ldr.w r9,  [sp, #40]
+    ldr.w r10, [sp, #44]
+    ldr.w r11, [sp, #48]
+    ldrb.w r3, [r2], #1
+    vmov s5, r2
+    madd_bitsliced r8, r9, r10, r11, r4, r5, r6, r7, r3, r0, r2, r12, r14
+    vmov r2, s5
+
+    str.w r8,  [sp, #36]
+    str.w r9,  [sp, #40]
+    str.w r10, [sp, #44]
+    str.w r11, [sp, #48]
+    vsub.f32 ctr1, ctr1, one
+    vcmp.f32 ctr1, #0.0
+    vmrs apsr_nzcv, FPSCR
+    bhi.w 2b
+
+    vmov r0, s3
+    # un-bitslice
+    bitslice r1, r2, r3, r4, r8, r9, r10, r11
+    str.w r1, [r0]
+    str.w r2, [r0,#4]
+    str.w r3, [r0,#8]
+    str.w r4, [r0,#12]
+
+    add.w sp, #52
+    pop.w {r4-r11, pc}
+
+
+//batch_quad_trimat_eval_gf16_100_32_asm_inner(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_100_32_asm_inner
+.type batch_quad_trimat_eval_gf16_100_32_asm_inner, %function
+.align 2
+batch_quad_trimat_eval_gf16_100_32_asm_inner:
+    push.w {r4-r11, r14}
+    one      .req s0
+    ctr1     .req s1
+    ctr2     .req s2
+
+    sub.w sp, #16
+    # initialize y with 0
+    mov.w r12, #0
+    str.w r12, [sp, #0]
+    str.w r12, [sp, #4]
+    str.w r12, [sp, #8]
+    str.w r12, [sp, #12]
+
+    vmov.w one, #0.25
+    vmov.w ctr1, #25
+
+    vmov.w s3, r0
+    2:
+    vmov.w s4, r2
+    mov.w r4, #0
+    mov.w r5, #0
+    mov.w r6, #0
+    mov.w r7, #0
+    vmov.f32 ctr2, ctr1
+    1:
+        ldr.w r9,  [r1, #4]
+        ldr.w r10, [r1, #8]
+        ldr.w r11, [r1, #12]
+        ldr.w r8,  [r1], #32
+        ldrb.w r0, [r2], #1
+
+        vmov s5, r2
+        bitslice r12, r14, r3, r2, r8, r9, r10, r11
+        madd_bitsliced r4, r5, r6, r7, r12, r14, r3, r2, r0, r8, r9, r10, r11
+        vmov r2, s5
+
+        vsub.f32 ctr2, ctr2, one
+        vcmp.f32 ctr2, #0.0
+        vmrs apsr_nzcv, FPSCR
+        bhi.w 1b
+
+    vmov r2, s4
+    ldr.w r8,  [sp, #0]
+    ldr.w r9,  [sp, #4]
+    ldr.w r10, [sp, #8]
+    ldr.w r11, [sp, #12]
+    ldrb.w r3, [r2], #1
+    vmov s5, r2
+    madd_bitsliced r8, r9, r10, r11, r4, r5, r6, r7, r3, r0, r2, r12, r14
+    vmov r2, s5
+
+    str.w r8,  [sp, #0]
+    str.w r9,  [sp, #4]
+    str.w r10, [sp, #8]
+    str.w r11, [sp, #12]
+    vsub.f32 ctr1, ctr1, one
+    vcmp.f32 ctr1, #0.0
+    vmrs apsr_nzcv, FPSCR
+    bhi.w 2b
+
+    vmov r0, s3
+    # un-bitslice
+    bitslice r1, r2, r3, r4, r8, r9, r10, r11
+    str.w r1, [r0]
+    str.w r2, [r0,#4]
+    str.w r3, [r0,#8]
+    str.w r4, [r0,#12]
+
+    add.w sp, #16
+    pop.w {r4-r11, pc}
+
+
+//batch_quad_trimat_eval_gf16_100_32_asm(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_100_32_asm
+.type batch_quad_trimat_eval_gf16_100_32_asm, %function
+.align 2
+batch_quad_trimat_eval_gf16_100_32_asm:
+    push.w {r4, r14}
+
+    sub sp, #100
+    # re-organize x
+    # unsigned char _x[256];
+    # for(unsigned i=0;i<dim;i++) _x[i] = gf16v_get_ele( x , i );
+    .set j, 0
+    .rept 12
+    ldr.w r3, [r2, #4*j]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+
+    .set i, 0
+    .rept 4
+    strb.w r3, [sp, #2*i+8*j]
+    strb.w r4, [sp, #2*i+8*j+1]
+    .if i !=3
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .endif
+    .set i, i+1
+    .endr
+    .set j, j+1
+    .endr
+
+    ldrh.w r3, [r2, #48]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+    .set i, 0
+    .rept 2
+    strb.w r3, [sp, #96+i*2]
+    strb.w r4, [sp, #96+i*2+1]
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .set i, i+1
+    .endr
+
+
+    mov.w r2, sp
+    push.w {r0-r1}
+    bl batch_quad_trimat_eval_gf16_100_32_asm_inner
+    pop.w {r0-r1}
+    add.w r0, #16
+    add.w r1, #16
+    mov.w r2, sp
+    bl batch_quad_trimat_eval_gf16_100_32_asm_inner
+
+    add sp, #100
+    pop.w {r4, pc}
+
+
+
+//batch_quad_trimat_eval_gf16_96_32_asm_inner(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_96_32_asm_inner
+.type batch_quad_trimat_eval_gf16_96_32_asm_inner, %function
+.align 2
+batch_quad_trimat_eval_gf16_96_32_asm_inner:
+    push.w {r4-r11, r14}
+    one      .req s0
+    ctr1     .req s1
+    ctr2     .req s2
+
+    sub.w sp, #16
+    # initialize y with 0
+    mov.w r12, #0
+    str.w r12, [sp, #0]
+    str.w r12, [sp, #4]
+    str.w r12, [sp, #8]
+    str.w r12, [sp, #12]
+
+    vmov.w one, #0.25
+    vmov.w ctr1, #24
+
+    vmov.w s3, r0
+    2:
+    vmov.w s4, r2
+    mov.w r4, #0
+    mov.w r5, #0
+    mov.w r6, #0
+    mov.w r7, #0
+    vmov.f32 ctr2, ctr1
+    1:
+        ldr.w r9,  [r1, #4]
+        ldr.w r10, [r1, #8]
+        ldr.w r11, [r1, #12]
+        ldr.w r8,  [r1], #32
+        ldrb.w r0, [r2], #1
+
+        vmov s5, r2
+        bitslice r12, r14, r3, r2, r8, r9, r10, r11
+        madd_bitsliced r4, r5, r6, r7, r12, r14, r3, r2, r0, r8, r9, r10, r11
+        vmov r2, s5
+
+        vsub.f32 ctr2, ctr2, one
+        vcmp.f32 ctr2, #0.0
+        vmrs apsr_nzcv, FPSCR
+        bhi.w 1b
+
+    vmov r2, s4
+    ldr.w r8,  [sp, #0]
+    ldr.w r9,  [sp, #4]
+    ldr.w r10, [sp, #8]
+    ldr.w r11, [sp, #12]
+    ldrb.w r3, [r2], #1
+    vmov s5, r2
+    madd_bitsliced r8, r9, r10, r11, r4, r5, r6, r7, r3, r0, r2, r12, r14
+    vmov r2, s5
+
+    str.w r8,  [sp, #0]
+    str.w r9,  [sp, #4]
+    str.w r10, [sp, #8]
+    str.w r11, [sp, #12]
+    vsub.f32 ctr1, ctr1, one
+    vcmp.f32 ctr1, #0.0
+    vmrs apsr_nzcv, FPSCR
+    bhi.w 2b
+
+    vmov r0, s3
+    # un-bitslice
+    bitslice r1, r2, r3, r4, r8, r9, r10, r11
+    str.w r1, [r0]
+    str.w r2, [r0,#4]
+    str.w r3, [r0,#8]
+    str.w r4, [r0,#12]
+
+    add.w sp, #16
+    pop.w {r4-r11, pc}
+
+//batch_quad_trimat_eval_gf16_96_32_asm(uint32_t y[4], uint32_t *trimat, uint8_t *_x)
+// trimat gets bitsliced on the fly
+// y is bitsliced until the very end and then gets unbitsliced
+.global batch_quad_trimat_eval_gf16_96_32_asm
+.type batch_quad_trimat_eval_gf16_96_32_asm, %function
+.align 2
+batch_quad_trimat_eval_gf16_96_32_asm:
+    push.w {r4, r14}
+
+    sub sp, #96
+    # re-organize x
+    # unsigned char _x[256];
+    # for(unsigned i=0;i<dim;i++) _x[i] = gf16v_get_ele( x , i );
+    .set j, 0
+    .rept 12
+    ldr.w r3, [r2, #4*j]
+    and.w r4, r3, #0xF0F0F0F0
+    lsr.w r4, r4, #4
+    and.w r3, r3, #0x0F0F0F0F
+
+    .set i, 0
+    .rept 4
+    strb.w r3, [sp, #2*i+8*j]
+    strb.w r4, [sp, #2*i+8*j+1]
+    .if i !=3
+    lsr.w r3, r3, #8
+    lsr.w r4, r4, #8
+    .endif
+    .set i, i+1
+    .endr
+    .set j, j+1
+    .endr
+
+
+    mov.w r2, sp
+    push.w {r0-r1}
+    bl batch_quad_trimat_eval_gf16_96_32_asm_inner
+    pop.w {r0-r1}
+    add.w r0, #16
+    add.w r1, #16
+    mov.w r2, sp
+    bl batch_quad_trimat_eval_gf16_96_32_asm_inner
+
+    add sp, #96
+    pop.w {r4, pc}
+
+
+
+//extern void madd_bitsliced_wrap_asm2(uint32_t *accc, uint32_t *a, uint8_t b);
+// a is already bitsliced
+// acc is bitsliced
+.global madd_bitsliced_wrap_asm2
+.type madd_bitsliced_wrap_asm2, %function
+.align 2
+madd_bitsliced_wrap_asm2:
+    push {r4-r11, r14}
+    ldr r3, [r0]
+    ldr r4, [r0, #4]
+    ldr r5, [r0, #8]
+    ldr r6, [r0, #12]
+
+    ldr r10, [r1]
+    ldr r11, [r1, #4]
+    ldr r12, [r1, #8]
+    ldr r14, [r1, #12]
+
+    //bitslice r10, r11, r12, r14, r7, r8, r9, r1
+    madd_bitsliced r3, r4, r5, r6, r10, r11, r12, r14, r2, r7, r8, r9, r1
+
+    str r3, [r0]
+    str r4, [r0,#4]
+    str r5, [r0,#8]
+    str r6, [r0,#12]
+
+    pop {r4-r11, pc}
+
+
+/*
+.global batch_quad_trimat_eval_gf16_100_32_new_inner
+.type batch_quad_trimat_eval_gf16_100_32_new_inner, %function
+.align 2
+batch_quad_trimat_eval_gf16_100_32_new_inner:
+    push.w {r4-r11, r14}
+    push.w {r0}
+    mov.w r2, #0
+    mov.w r3, #0
+    mov.w r4, #0
+    mov.w r5, #0
+    add.w r1, #32
+
+    mov.w r0, #1
+    1:
+        ldr.w r7, [r1, #4]
+        ldr.w r8, [r1, #8]
+        ldr.w r9, [r1, #12]
+        ldr.w r6, [r1], #32
+
+        bitslice r10, r11, r12, r14, r6, r7, r8, r9
+        madd_bitsliced r2, r3, r4, r5, r10, r11, r12, r14, r0, r6, r7, r8, r9
+
+        add.w r0, r0, #1
+        cmp.w r0, #16
+        bne.w 1b
+
+    bitslice r6, r7, r8, r9, r2, r3, r4, r5
+    ldr r0, [sp]
+    str.w r6, [r0]
+    str.w r7, [r0, #4]
+    str.w r8, [r0, #8]
+    str.w r9, [r0, #12]
+
+    sub.w r1, r1, #32*15-16
+    mov.w r2, #0
+    mov.w r3, #0
+    mov.w r4, #0
+    mov.w r5, #0
+    mov.w r0, #1
+    1:
+        ldr.w r7, [r1, #4]
+        ldr.w r8, [r1, #8]
+        ldr.w r9, [r1, #12]
+        ldr.w r6, [r1], #32
+        bitslice r10, r11, r12, r14, r6, r7, r8, r9
+        madd_bitsliced r2, r3, r4, r5, r10, r11, r12, r14, r0, r6, r7, r8, r9
+
+        add.w r0, r0, #1
+        cmp.w r0, #16
+        bne.w 1b
+
+    bitslice r6, r7, r8, r9, r2, r3, r4, r5
+    pop {r0}
+    str.w r6, [r0, #16]
+    str.w r7, [r0, #20]
+    str.w r8, [r0, #24]
+    str.w r9, [r0, #28]
+
+
+    pop {r4-r11, pc}
+
+*/
+/*
+.global batch_quad_trimat_eval_gf16_100_32_new_inner2
+.type batch_quad_trimat_eval_gf16_100_32_new_inner2, %function
+.align 2
+batch_quad_trimat_eval_gf16_100_32_new_inner2:
+    cmp.w r2, #0
+    beq.w exit
+    push.w {r4-r9}
+    add.w r0, r0, r2, lsl#5
+
+    .set i, 0
+    .rept 2
+    ldr.w r2, [r0, #0+i*16]
+    ldr.w r3, [r0, #4+i*16]
+    ldr.w r4, [r0, #8+i*16]
+    ldr.w r5, [r0, #12+i*16]
+
+    ldr.w r6, [r1, #0+i*16]
+    ldr.w r7, [r1, #4+i*16]
+    ldr.w r8, [r1, #8+i*16]
+    ldr.w r9, [r1, #12+i*16]
+
+    eor.w r2, r2, r6
+    eor.w r3, r3, r7
+    eor.w r4, r4, r8
+    eor.w r5, r5, r9
+
+    str.w r2, [r0, #0+i*16]
+    str.w r3, [r0, #4+i*16]
+    str.w r4, [r0, #8+i*16]
+    str.w r5, [r0, #12+i*16]
+    .set i, i+1
+    .endr
+
+    pop {r4-r9}
+    exit:
+    bx lr */
