@@ -11,10 +11,7 @@
 
 static void usart_setup()
 {
-    //TODO: clock setup
     USART_InitAsync_TypeDef init = USART_INITASYNC_DEFAULT;
-    // Chip errata
-    CHIP_Init();
     // Enable oscillator to GPIO and USART1 modules
     CMU_ClockEnable(cmuClock_GPIO, true);
     CMU_ClockEnable(cmuClock_USART5, true);
@@ -106,8 +103,26 @@ int randombytes(uint8_t *buf, size_t len)
     return 0;
 }
 
+static void clock_setup(const enum clock_mode clock){
+    // Chip errata
+    CHIP_Init();
+
+    // Set frequency
+    switch(clock){
+        case CLOCK_FAST:
+            // Maximum frequency for EFM32GG11
+            CMU_HFRCOFreqSet(cmuHFRCOFreq_72M0Hz);
+            break;
+        case CLOCK_BENCHMARK:
+            // Maximum frequency such that there are no wait states
+            CMU_HFRCOFreqSet(cmuHFRCOFreq_16M0Hz);
+            break;
+    }
+}
+
 void hal_setup(const enum clock_mode clock)
 {
+    clock_setup(clock);
     usart_setup();
     trng_setup();
     cyccnt_setup();
